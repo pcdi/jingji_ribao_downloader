@@ -6,6 +6,8 @@ name = "pypi"
 [packages]
 bs4 = "*"
 aiohttp = "*"
+tqdm = "*"
+pypdf2 = "*"
 
 [dev-packages]
 black = "*"
