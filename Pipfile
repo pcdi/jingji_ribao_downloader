@@ -4,6 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+bs4 = "*"
+aiohttp = "*"
 
 [dev-packages]
 black = "*"
