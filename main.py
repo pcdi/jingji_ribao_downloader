@@ -1,17 +1,18 @@
 import asyncio
+from datetime import date
 from io import BytesIO
+from urllib.parse import urljoin
 
 import PyPDF2 as PyPDF2
+import aiohttp
 from aiohttp import ClientSession
-from datetime import date
 from bs4 import BeautifulSoup
-import re
-from urllib.parse import urljoin
-from tqdm.asyncio import trange, tqdm
+from tqdm.asyncio import tqdm
 
 
 class JingjiRibaoEdition:
     edition_date = date.today()
+    # edition_date = date(2021, 5, 15)
     edition_url = (
         "http://paper.ce.cn/pc/layout/"
         + edition_date.strftime("%Y%m/%d/")
@@ -19,20 +20,25 @@ class JingjiRibaoEdition:
     )
     edition_frontpage_html = BeautifulSoup
     edition_pdfs = []
+    session = ClientSession
 
     def __init__(self):
         print(self.edition_url)
 
-    async def get_edition_html(self, session):
-        async with session.get(self.edition_url) as response:
+    async def get_edition_html(self):
+        self.session = ClientSession(raise_for_status=True)
+        print(f"Getting 经济日报 for {edition.edition_date}")
+        async with self.session as session:
             try:
-                response = await response.read()
-                self.edition_frontpage_html = BeautifulSoup(response, "html.parser")
-                # print(self.edition_frontpage_html.prettify())
-            except response.status != 200:
+                async with session.get(self.edition_url) as response:
+                    assert response.status == 200
+                    response = await response.read()
+                    self.edition_frontpage_html = BeautifulSoup(response, "html.parser")
+                await self.get_edition_pdf_links()
+            except aiohttp.ClientResponseError:
                 raise
 
-    def get_edition_pdf_links(self):
+    async def get_edition_pdf_links(self):
         page_pdf_links = self.edition_frontpage_html.find_all(
             "li", class_="posRelative"
         )
@@ -49,19 +55,24 @@ class JingjiRibaoEdition:
                 "page_link": page_pdf_link.find("input")["value"],
             }
             self.edition_pdfs.append(edition_page_link)
+        await self.get_edition_pdfs()
 
-    async def get_edition_pdfs(self, session):
-        for edition_page_link in tqdm(self.edition_pdfs):
-            async with session.get(
-                urljoin(self.edition_url, edition_page_link["page_link"])
-            ) as response:
-                try:
+    async def get_edition_pdfs(self):
+        async for edition_page_link in tqdm(self.edition_pdfs):
+            try:
+                async with self.session.get(
+                    urljoin(self.edition_url, edition_page_link["page_link"])
+                ) as response:
+                    assert response.status == 200
                     response = await response.read()
                     edition_page_link["pdf"] = response
-                except response.status != 200:
-                    raise
 
-    def merge_page_pdfs(self):
+            except aiohttp.ClientResponseError:
+                print("PDF could not be found.")
+                return
+        await self.merge_page_pdfs()
+
+    async def merge_page_pdfs(self):
         print(f"Merging PDFs.")
         merger = PyPDF2.PdfMerger()
         for page in self.edition_pdfs:
@@ -73,16 +84,7 @@ class JingjiRibaoEdition:
         print("Done.")
 
 
-async def get_edition():
-    edition = JingjiRibaoEdition()
-    print(f"Getting 经济日报 for {edition.edition_date}")
-    async with ClientSession() as session:
-        await edition.get_edition_html(session)
-        edition.get_edition_pdf_links()
-        await edition.get_edition_pdfs(session)
-        edition.merge_page_pdfs()
-
-
 if __name__ == "__main__":
+    edition = JingjiRibaoEdition()
     with asyncio.Runner(debug=True) as runner:
-        runner.run(get_edition())
+        runner.run(edition.get_edition_html())
