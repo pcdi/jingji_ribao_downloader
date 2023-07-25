@@ -25,6 +25,7 @@ class JingjiRibaoEdition:
             + "node_01.html"
         )
         self.edition_pdfs = []
+        self.output_dir = 'out/'
 
     async def get_edition_html(self):
         self.session = ClientSession(raise_for_status=True)
@@ -70,17 +71,21 @@ class JingjiRibaoEdition:
             except aiohttp.ClientResponseError:
                 print("PDF could not be found.")
                 return
-        await self.merge_page_pdfs()
+        await self.merge_and_write_page_pdfs()
 
-    async def merge_page_pdfs(self):
+    async def merge_and_write_page_pdfs(self):
         print(f"Merging PDFs for {self.edition_date.isoformat()}.")
-        merger = PyPDF2.PdfMerger()
-        for page in self.edition_pdfs:
-            pdf = BytesIO(page["pdf"])
-            bookmark = page["page_title"]
-            merger.append(fileobj=pdf, outline_item=bookmark)
-        merger.write(f"{self.edition_date.isoformat()}.pdf")
-        merger.close()
+        with PyPDF2.PdfMerger() as merger:
+            for page in self.edition_pdfs:
+                with PyPDF2.PdfWriter() as writer:
+                    pdf = BytesIO(page["pdf"])
+                    bookmark = page["page_title"]
+                    writer.append(fileobj=pdf, outline_item=bookmark)
+                    writer.write(
+                        f"{self.output_dir}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
+                    )
+                    merger.append(fileobj=pdf, outline_item=bookmark)
+            merger.write(f"{self.output_dir}{self.edition_date.isoformat()}.pdf")
         print(f"Done with {self.edition_date.isoformat()}.")
 
 
