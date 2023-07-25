@@ -77,9 +77,9 @@ class JingjiRibaoEdition:
         print(f"Merging PDFs for {self.edition_date.isoformat()}.")
         with PyPDF2.PdfMerger() as merger:
             for page in self.edition_pdfs:
+                pdf = BytesIO(page["pdf"])
+                bookmark = page["page_title"]
                 with PyPDF2.PdfWriter() as writer:
-                    pdf = BytesIO(page["pdf"])
-                    bookmark = page["page_title"]
                     writer.append(fileobj=pdf, outline_item=bookmark)
                     writer.write(
                         f"{self.output_dir}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
