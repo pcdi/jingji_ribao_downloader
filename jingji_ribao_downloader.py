@@ -78,18 +78,21 @@ class JingjiRibaoEdition:
         print(f"Merging PDFs for {self.edition_date.isoformat()}.")
         with PyPDF2.PdfMerger() as merger:
             for page in self.edition_pdfs:
-                pdf = BytesIO(page["pdf"])
-                bookmark = page["page_title"]
-                with PyPDF2.PdfWriter() as writer:
-                    writer.append(fileobj=pdf, outline_item=bookmark)
-                    writer.write(
-                        f"{self.edition_date.strftime(f'{output_dir}%Y/%m/%d/')}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
-                    )
-                    merger.append(fileobj=pdf, outline_item=bookmark)
+                await self.write_page_pdf(merger, page)
             merger.write(
                 f"{self.edition_date.strftime(f'{output_dir}%Y/%m/%d/')}{self.edition_date.isoformat()}.pdf"
             )
         print(f"Done with {self.edition_date.isoformat()}.")
+
+    async def write_page_pdf(self, merger, page):
+        pdf = BytesIO(page["pdf"])
+        bookmark = page["page_title"]
+        with PyPDF2.PdfWriter() as writer:
+            writer.append(fileobj=pdf, outline_item=bookmark)
+            writer.write(
+                f"{self.edition_date.strftime(f'{output_dir}%Y/%m/%d/')}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
+            )
+            merger.append(fileobj=pdf, outline_item=bookmark)
 
 
 async def main(start_date, end_date):
