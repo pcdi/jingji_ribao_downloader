@@ -4,6 +4,8 @@ from datetime import date
 from io import BytesIO
 from urllib.parse import urljoin
 from pathlib import Path
+from argparse import ArgumentParser
+
 
 import PyPDF2 as PyPDF2
 import aiohttp
@@ -80,7 +82,7 @@ class JingjiRibaoEdition:
             for page in self.edition_pdfs:
                 await self.write_page_pdf(merger, page)
             merger.write(
-                f"{self.edition_date.strftime(f'{output_dir}%Y/%m/%d/')}{self.edition_date.isoformat()}.pdf"
+                f"{self.edition_date.strftime(f'{output_dir}/%Y/%m/%d/')}{self.edition_date.isoformat()}.pdf"
             )
         print(f"Done with {self.edition_date.isoformat()}.")
 
@@ -90,7 +92,7 @@ class JingjiRibaoEdition:
         with PyPDF2.PdfWriter() as writer:
             writer.append(fileobj=pdf, outline_item=bookmark)
             writer.write(
-                f"{self.edition_date.strftime(f'{output_dir}%Y/%m/%d/')}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
+                f"{self.edition_date.strftime(f'{output_dir}/%Y/%m/%d/')}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
             )
             merger.append(fileobj=pdf, outline_item=bookmark)
 
@@ -110,15 +112,51 @@ async def main(start_date, end_date):
 async def make_output_dirs(start_date, end_date):
     for delta_days in range((end_date - start_date).days + 1):
         current_date = start_date + datetime.timedelta(days=delta_days)
-        current_date_path = current_date.strftime(f"{output_dir}%Y/%m/%d")
+        current_date_path = current_date.strftime(f"{output_dir}/%Y/%m/%d")
         Path(current_date_path).mkdir(parents=True, exist_ok=True)
 
 
 if __name__ == "__main__":
-    first_date = date(2023, 7, 20)
-    last_date = date(2023, 7, 22)
-    output_dir = "out/"
+    parser = ArgumentParser("Download newspapers from Jingji Ribao.")
+    parser.add_argument(
+        "-f",
+        "--first",
+        type=datetime.date.fromisoformat,
+        help="First edition to download, in ISO 8601 format: YYYY-MM-DD, defaults to today.",
+        nargs=1,
+        default=date.today(),
+        required=False,
+    )
+    parser.add_argument(
+        "-l",
+        "--last",
+        type=datetime.date.fromisoformat,
+        help="Last edition to download, in ISO 8601 format: YYYY-MM-DD, defaults to today.",
+        nargs=1,
+        default=date.today(),
+        required=False,
+    )
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        type=str,
+        help="Output directory, defaults to `out`.",
+        nargs=1,
+        default="out",
+        required=False,
+    )
+    args = parser.parse_args()
+    output_dir = args.outdir
+    print("Welcome to Jingji Ribao Downloader.")
+    first = input("Enter first date (default today): ")
+    if first:
+        assert datetime.date.fromisoformat(first) <= date.today()
+        args.first = datetime.date.fromisoformat(first)
+    last = input("Enter last date (default today): ")
+    if last:
+        assert datetime.date.fromisoformat(last) <= date.today()
+        args.last = datetime.date.fromisoformat(last)
     with asyncio.Runner(
         # debug=True
     ) as runner:
-        runner.run(main(first_date, last_date))
+        runner.run(main(args.first, args.last))
