@@ -3,6 +3,7 @@ import datetime
 from datetime import date
 from io import BytesIO
 from urllib.parse import urljoin
+from pathlib import Path
 
 import PyPDF2 as PyPDF2
 import aiohttp
@@ -25,7 +26,7 @@ class JingjiRibaoEdition:
             + "node_01.html"
         )
         self.edition_pdfs = []
-        self.output_dir = 'out/'
+        self.output_dir = output_dir
 
     async def get_edition_html(self):
         self.session = ClientSession(raise_for_status=True)
@@ -82,15 +83,18 @@ class JingjiRibaoEdition:
                 with PyPDF2.PdfWriter() as writer:
                     writer.append(fileobj=pdf, outline_item=bookmark)
                     writer.write(
-                        f"{self.output_dir}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
+                        f"{self.edition_date.strftime(f'{output_dir}%Y/%m/%d/')}{self.edition_date.isoformat()}_{str(page['page_number'])}.pdf"
                     )
                     merger.append(fileobj=pdf, outline_item=bookmark)
-            merger.write(f"{self.output_dir}{self.edition_date.isoformat()}.pdf")
+            merger.write(
+                f"{self.edition_date.strftime(f'{output_dir}%Y/%m/%d/')}{self.edition_date.isoformat()}.pdf"
+            )
         print(f"Done with {self.edition_date.isoformat()}.")
 
 
 async def main(start_date, end_date):
     assert start_date <= end_date
+    await make_output_dirs(start_date, end_date)
     async with asyncio.TaskGroup() as tg:
         for edition_date in [
             start_date + datetime.timedelta(days=x)
@@ -100,10 +104,18 @@ async def main(start_date, end_date):
             tg.create_task(edition.get_edition_html())
 
 
+async def make_output_dirs(start_date, end_date):
+    for delta_days in range((end_date - start_date).days + 1):
+        current_date = start_date + datetime.timedelta(days=delta_days)
+        current_date_path = current_date.strftime(f"{output_dir}%Y/%m/%d")
+        Path(current_date_path).mkdir(parents=True, exist_ok=True)
+
+
 if __name__ == "__main__":
-    start_date = date(2023, 7, 20)
-    end_date = date(2023, 7, 22)
+    first_date = date(2023, 7, 20)
+    last_date = date(2023, 7, 22)
+    output_dir = "out/"
     with asyncio.Runner(
         # debug=True
     ) as runner:
-        runner.run(main(start_date, end_date))
+        runner.run(main(first_date, last_date))
